@@ -9,4 +9,7 @@
   (name base-bytes-bye)
   (synopsis "Removes base-bytes from the Duniverse")
   (depends
-    (ocaml (>= 4.14.0))))
+    (ocaml (>= 4.14.0))
+    (base (>= v0.15))
+    (stdio (>= v0.15))
+    (sexplib (>= v0.15))))
