@@ -4,6 +4,7 @@
 (generate_opam_files true)
 (authors "Marek Kubica <marek@tarides.com>")
 (maintainers "Marek Kubica <marek@tarides.com>")
+(source (github tarides/base-bytes-bye))
 
 (package
   (name base-bytes-bye)
@@ -11,6 +12,7 @@
   (depends
     (ocaml (>= 4.14.0))
     (fmt (>= 0.9.0))
+    (opam-file-format (>= 2.1.4))
     (base (>= v0.15))
     (stdio (>= v0.15))
     (sexplib (>= v0.15))))

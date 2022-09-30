@@ -3,10 +3,13 @@ opam-version: "2.0"
 synopsis: "Removes base-bytes from the Duniverse"
 maintainer: ["Marek Kubica <marek@tarides.com>"]
 authors: ["Marek Kubica <marek@tarides.com>"]
+homepage: "https://github.com/tarides/base-bytes-bye"
+bug-reports: "https://github.com/tarides/base-bytes-bye/issues"
 depends: [
   "dune" {>= "3.4"}
   "ocaml" {>= "4.14.0"}
   "fmt" {>= "0.9.0"}
+  "opam-file-format" {>= "2.1.4"}
   "base" {>= "v0.15"}
   "stdio" {>= "v0.15"}
   "sexplib" {>= "v0.15"}
@@ -26,3 +29,4 @@ build: [
     "@doc" {with-doc}
   ]
 ]
+dev-repo: "git+https://github.com/tarides/base-bytes-bye.git"
