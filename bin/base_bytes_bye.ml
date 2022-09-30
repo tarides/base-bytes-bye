@@ -1,7 +1,17 @@
 open Base
 module S = Sexplib.Sexp
 
-let patch_dune_expr sexp = sexp
+let remove_bytes libs =
+  List.filter ~f:(function S.Atom "bytes" -> false | _ -> true) libs
+
+let patch_dune_expr sexp =
+  let rec loop = function
+    | S.Atom _ as atom -> atom
+    | List ((Atom "libraries" as stanza) :: libs) ->
+        List (stanza :: remove_bytes libs)
+    | List xs -> List (List.map ~f:loop xs)
+  in
+  loop sexp
 
 let patch_file patchf filename =
   let exprs =
@@ -21,7 +31,7 @@ let patch_file patchf filename =
   ()
 
 let main () =
-  patch_file patch_dune_expr "dune";
+  patch_file patch_dune_expr "dune.in";
   ()
 
 let () = main ()

@@ -10,6 +10,7 @@
   (synopsis "Removes base-bytes from the Duniverse")
   (depends
     (ocaml (>= 4.14.0))
+    (fmt (>= 0.9.0))
     (base (>= v0.15))
     (stdio (>= v0.15))
     (sexplib (>= v0.15))))
