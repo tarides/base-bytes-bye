@@ -2,84 +2,115 @@ open Base
 module S = Sexplib.Sexp
 
 let remove_bytes libs =
-  List.filter ~f:(function S.Atom "bytes" -> false | _ -> true) libs
+  let changed, libs =
+    List.fold libs ~init:(false, []) ~f:(fun (changed, libs) -> function
+      | S.Atom "bytes" -> (true, libs) | lib -> (changed, lib :: libs))
+  in
+  (changed, List.rev libs)
 
 let patch_dune_expr sexp =
-  let rec loop = function
-    | S.Atom _ as atom -> atom
+  let rec loop ~changed sexp =
+    match sexp with
+    | S.Atom _ as atom -> (changed, atom)
     | List ((Atom "libraries" as stanza) :: libs) ->
-        List (stanza :: remove_bytes libs)
-    | List xs -> List (List.map ~f:loop xs)
+        let changed, byteless = remove_bytes libs in
+        (changed, List (stanza :: byteless))
+    | List xs ->
+        let processed = List.map ~f:(loop ~changed) xs in
+        let changed, sexp = List.unzip processed in
+        let changed = List.exists changed ~f:Fn.id in
+        (changed, List sexp)
   in
-  loop sexp
+  loop ~changed:false sexp
 
 let remove_base_bytes deps =
-  List.filter
-    ~f:(function
+  let changed, deps =
+    List.fold deps ~init:(false, []) ~f:(fun (changed, deps) -> function
       (* base-bytes can be either as an atom or as list with version constraints *)
-      | S.Atom "base-bytes" | List (Atom "base-bytes" :: _) -> false
-      | _ -> true)
-    deps
+      | S.Atom "base-bytes" | List (Atom "base-bytes" :: _) -> (true, deps)
+      | dep -> (changed, dep :: deps))
+  in
+  (changed, List.rev deps)
 
 let patch_dune_project_expr sexp =
-  let rec loop = function
-    | S.Atom _ as atom -> atom
+  let rec loop ~changed = function
+    | S.Atom _ as atom -> (changed, atom)
     | List ((Atom "depends" as stanza) :: deps) ->
-        List (stanza :: remove_base_bytes deps)
-    | List xs -> List (List.map ~f:loop xs)
+        let changed, byteless = remove_base_bytes deps in
+        (changed, List (stanza :: byteless))
+    | List xs ->
+        let processed = List.map ~f:(loop ~changed) xs in
+        let changed, sexp = List.unzip processed in
+        let changed = List.exists changed ~f:Fn.id in
+        (changed, List sexp)
   in
-  loop sexp
+  loop ~changed:false sexp
 
 let patch_sexp_file patchf path =
   let filename = Fpath.to_string path in
-  let exprs =
+  let changed, exprs =
     Stdio.In_channel.with_file filename ~f:(fun dune_file ->
         let sexprs = S.input_sexps dune_file in
-        List.map ~f:patchf sexprs)
+        let processed = List.map ~f:patchf sexprs in
+        let changed, sexprs = List.unzip processed in
+        let changed = List.exists ~f:Fn.id changed in
+        (changed, sexprs))
   in
-  let out_file = Printf.sprintf "%s.out" filename in
-  Stdio.Out_channel.with_file out_file ~f:(fun out_file ->
-      List.iter
-        ~f:(fun sexp ->
-          S.output_hum out_file sexp;
-          Stdio.Out_channel.output_char out_file '\n')
-        exprs)
+  match changed with
+  | false -> ()
+  | true ->
+      let out_file = Printf.sprintf "%s.out" filename in
+      Stdio.Out_channel.with_file out_file ~f:(fun out_file ->
+          List.iter
+            ~f:(fun sexp ->
+              S.output_hum out_file sexp;
+              Stdio.Out_channel.output_char out_file '\n')
+            exprs)
 
 let patch_depends filtered_formula =
   let base_bytes = OpamPackage.Name.of_string "base-bytes" in
   let is_base_bytes = OpamPackage.Name.equal base_bytes in
-  let rec remove_base_bytes formula =
+  let rec remove_base_bytes ~changed formula =
     match formula with
-    | OpamFormula.Empty as e -> e
-    | Atom _ as a -> a
-    | Block _ as b -> b
+    | OpamFormula.Empty as e -> (changed, e)
+    | Atom _ as a -> (changed, a)
+    | Block _ as b -> (changed, b)
     | And (Atom (name, _), right) when is_base_bytes name ->
-        remove_base_bytes right
+        remove_base_bytes ~changed:true right
     | And (left, Atom (name, _)) when is_base_bytes name ->
-        remove_base_bytes left
-    | And (left, right) -> And (remove_base_bytes left, remove_base_bytes right)
+        remove_base_bytes ~changed:true left
+    | And (left, right) ->
+        let changed, left = remove_base_bytes ~changed left in
+        let changed, right = remove_base_bytes ~changed right in
+        (changed, And (left, right))
     | Or (Atom (name, _), right) when is_base_bytes name ->
-        remove_base_bytes right
+        remove_base_bytes ~changed:true right
     | Or (left, Atom (name, _)) when is_base_bytes name ->
-        remove_base_bytes left
-    | Or (left, right) -> Or (remove_base_bytes left, remove_base_bytes right)
+        remove_base_bytes ~changed:true left
+    | Or (left, right) ->
+        let changed, left = remove_base_bytes ~changed left in
+        let changed, right = remove_base_bytes ~changed right in
+        (changed, Or (left, right))
   in
-  remove_base_bytes filtered_formula
+  remove_base_bytes ~changed:false filtered_formula
 
 let patch_opam_file path =
   let filename = Fpath.to_string path in
   let out_file = Printf.sprintf "%s.out" filename in
   let in_str = Stdio.In_channel.read_all filename in
   let opam = OpamFile.OPAM.read_from_string in_str in
-  let patched_depends = patch_depends (OpamFile.OPAM.depends opam) in
-  let opam = OpamFile.OPAM.with_depends patched_depends opam in
-  let unused_filename = OpamFilename.of_string out_file in
-  let typed_file = OpamFile.make unused_filename in
-  let data =
-    OpamFile.OPAM.to_string_with_preserved_format ~format_from_string:in_str
-      typed_file opam
-  in
-  Stdio.Out_channel.write_all out_file ~data
+  let changed, patched_depends = patch_depends (OpamFile.OPAM.depends opam) in
+  match changed with
+  | false -> ()
+  | true ->
+      let opam = OpamFile.OPAM.with_depends patched_depends opam in
+      let unused_filename = OpamFilename.of_string out_file in
+      let typed_file = OpamFile.make unused_filename in
+      let data =
+        OpamFile.OPAM.to_string_with_preserved_format ~format_from_string:in_str
+          typed_file opam
+      in
+      Stdio.Out_channel.write_all out_file ~data
 
 let exclusions = [ "_opam"; "_build" ] |> Set.of_list (module String)
 
