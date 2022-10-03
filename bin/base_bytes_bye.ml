@@ -79,7 +79,29 @@ let patch_opam_file filename =
   in
   Stdio.Out_channel.write_all out_file ~data
 
+let exclusions = [ "_opam"; "_build" ] |> Set.of_list (module String)
+
+let excluded path =
+  let base = Fpath.basename path in
+  Set.mem exclusions base
+
+let locate_dune_files wd =
+  let traverse = `Sat (fun path -> Ok (not (excluded path))) in
+  let is_dune_file = String.equal "dune" in
+  let elements =
+    `Sat (fun path -> Fpath.filename path |> is_dune_file |> Result.return)
+  in
+  let dune_files =
+    Bos.OS.Path.fold ~elements ~traverse (fun path acc -> path :: acc) [] [ wd ]
+  in
+  match dune_files with
+  | Ok dune_files -> dune_files
+  | Error (`Msg msg) -> failwith msg
+
 let main () =
+  let wd = Fpath.v "." in
+  let dune_paths = locate_dune_files wd in
+  List.iter ~f:(fun path -> Fmt.epr "dune-file %a\n" Fpath.pp path) dune_paths;
   patch_sexp_file patch_dune_expr "dune.in";
   patch_sexp_file patch_dune_project_expr "dune-project.in";
   patch_opam_file "sample.opam.in"

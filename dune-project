@@ -11,7 +11,9 @@
   (synopsis "Removes base-bytes from the Duniverse")
   (depends
     (ocaml (>= 4.14.0))
+    (fpath (>= 0.7.3))
     (fmt (>= 0.9.0))
+    (bos (>= 0.2.1))
     (opam-format (>= 2.1.3))
     (base (>= v0.15))
     (stdio (>= v0.15))
