@@ -12,7 +12,7 @@
   (depends
     (ocaml (>= 4.14.0))
     (fmt (>= 0.9.0))
-    (opam-file-format (>= 2.1.4))
+    (opam-format (>= 2.1.3))
     (base (>= v0.15))
     (stdio (>= v0.15))
     (sexplib (>= v0.15))))

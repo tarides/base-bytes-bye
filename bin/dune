@@ -1,4 +1,4 @@
 (executable
  (public_name base-bytes-bye)
  (name base_bytes_bye)
- (libraries sexplib stdio base fmt))
+ (libraries sexplib stdio base fmt opam-format))

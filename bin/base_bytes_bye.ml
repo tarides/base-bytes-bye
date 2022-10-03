@@ -30,7 +30,7 @@ let patch_dune_project_expr sexp =
   in
   loop sexp
 
-let patch_file patchf filename =
+let patch_sexp_file patchf filename =
   let exprs =
     Stdio.In_channel.with_file filename ~f:(fun dune_file ->
         let sexprs = S.input_sexps dune_file in
@@ -44,8 +44,44 @@ let patch_file patchf filename =
           Stdio.Out_channel.output_char out_file '\n')
         exprs)
 
+let patch_depends filtered_formula =
+  let base_bytes = OpamPackage.Name.of_string "base-bytes" in
+  let is_base_bytes = OpamPackage.Name.equal base_bytes in
+  let rec remove_base_bytes formula =
+    match formula with
+    | OpamFormula.Empty as e -> e
+    | Atom _ as a -> a
+    | Block _ as b -> b
+    | And (Atom (name, _), right) when is_base_bytes name ->
+        remove_base_bytes right
+    | And (left, Atom (name, _)) when is_base_bytes name ->
+        remove_base_bytes left
+    | And (left, right) -> And (remove_base_bytes left, remove_base_bytes right)
+    | Or (Atom (name, _), right) when is_base_bytes name ->
+        remove_base_bytes right
+    | Or (left, Atom (name, _)) when is_base_bytes name ->
+        remove_base_bytes left
+    | Or (left, right) -> Or (remove_base_bytes left, remove_base_bytes right)
+  in
+  remove_base_bytes filtered_formula
+
+let patch_opam_file filename =
+  let out_file = Printf.sprintf "%s.out" filename in
+  let in_str = Stdio.In_channel.read_all filename in
+  let opam = OpamFile.OPAM.read_from_string in_str in
+  let patched_depends = patch_depends (OpamFile.OPAM.depends opam) in
+  let opam = OpamFile.OPAM.with_depends patched_depends opam in
+  let unused_filename = OpamFilename.of_string out_file in
+  let typed_file = OpamFile.make unused_filename in
+  let data =
+    OpamFile.OPAM.to_string_with_preserved_format ~format_from_string:in_str
+      typed_file opam
+  in
+  Stdio.Out_channel.write_all out_file ~data
+
 let main () =
-  patch_file patch_dune_expr "dune.in";
-  patch_file patch_dune_project_expr "dune-project.in"
+  patch_sexp_file patch_dune_expr "dune.in";
+  patch_sexp_file patch_dune_project_expr "dune-project.in";
+  patch_opam_file "sample.opam.in"
 
 let () = main ()
