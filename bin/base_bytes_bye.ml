@@ -30,7 +30,8 @@ let patch_dune_project_expr sexp =
   in
   loop sexp
 
-let patch_sexp_file patchf filename =
+let patch_sexp_file patchf path =
+  let filename = Fpath.to_string path in
   let exprs =
     Stdio.In_channel.with_file filename ~f:(fun dune_file ->
         let sexprs = S.input_sexps dune_file in
@@ -65,7 +66,8 @@ let patch_depends filtered_formula =
   in
   remove_base_bytes filtered_formula
 
-let patch_opam_file filename =
+let patch_opam_file path =
+  let filename = Fpath.to_string path in
   let out_file = Printf.sprintf "%s.out" filename in
   let in_str = Stdio.In_channel.read_all filename in
   let opam = OpamFile.OPAM.read_from_string in_str in
@@ -117,11 +119,10 @@ let locate_opam_files wd =
 let main () =
   let wd = Fpath.v "." in
   let dune_paths = locate_dune_files wd in
-  List.iter ~f:(fun path -> Fmt.epr "dune-file %a\n" Fpath.pp path) dune_paths;
-  patch_sexp_file patch_dune_expr "dune.in";
-  patch_sexp_file patch_dune_project_expr "dune-project.in";
+  List.iter ~f:(patch_sexp_file patch_dune_expr) dune_paths;
+  let dune_project_path = Fpath.(wd / "dune-project") in
+  patch_sexp_file patch_dune_project_expr dune_project_path;
   let opam_paths = locate_opam_files wd in
-  List.iter ~f:(fun path -> Fmt.epr "opam-file %a\n" Fpath.pp path) opam_paths;
-  patch_opam_file "sample.opam.in"
+  List.iter ~f:patch_opam_file opam_paths
 
 let () = main ()
