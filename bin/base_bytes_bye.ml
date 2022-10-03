@@ -98,12 +98,30 @@ let locate_dune_files wd =
   | Ok dune_files -> dune_files
   | Error (`Msg msg) -> failwith msg
 
+let locate_opam_files wd =
+  let is_wd = Fpath.equal wd in
+  let traverse = `Sat (fun path -> Ok (is_wd path)) in
+  let is_opam_file path =
+    match Fpath.filename path with
+    | "opam" -> true
+    | _ -> ( match Fpath.get_ext path with ".opam" -> true | _ -> false)
+  in
+  let elements = `Sat (fun path -> Ok (is_opam_file path)) in
+  let opam_files =
+    Bos.OS.Path.fold ~elements ~traverse (fun path acc -> path :: acc) [] [ wd ]
+  in
+  match opam_files with
+  | Ok opam_files -> opam_files
+  | Error (`Msg msg) -> failwith msg
+
 let main () =
   let wd = Fpath.v "." in
   let dune_paths = locate_dune_files wd in
   List.iter ~f:(fun path -> Fmt.epr "dune-file %a\n" Fpath.pp path) dune_paths;
   patch_sexp_file patch_dune_expr "dune.in";
   patch_sexp_file patch_dune_project_expr "dune-project.in";
+  let opam_paths = locate_opam_files wd in
+  List.iter ~f:(fun path -> Fmt.epr "opam-file %a\n" Fpath.pp path) opam_paths;
   patch_opam_file "sample.opam.in"
 
 let () = main ()
