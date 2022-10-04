@@ -46,6 +46,12 @@ let patch_dune_project_expr sexp =
   in
   loop ~changed:false sexp
 
+let rename from into =
+  match Bos.OS.U.rename from into with
+  | Ok () -> ()
+  | Error (`Unix unix_err) ->
+      Fmt.failwith "Unix error: %s" (Unix.error_message unix_err)
+
 let patch_sexp_file patchf path =
   let filename = Fpath.to_string path in
   let changed, exprs =
@@ -80,11 +86,7 @@ let patch_sexp_file patchf path =
                     (fun format_path oc content ->
                       Stdio.Out_channel.output_string oc content;
                       Stdio.Out_channel.close oc;
-                      match Bos.OS.U.rename format_path path with
-                      | Ok () -> ()
-                      | Error (`Unix unix_err) ->
-                          Fmt.failwith "Unix error: %s"
-                            (Unix.error_message unix_err))
+                      rename format_path path)
                     formatted
                 in
                 match res with Ok () -> () | Error (`Msg msg) -> failwith msg))
@@ -121,21 +123,29 @@ let patch_depends filtered_formula =
 
 let patch_opam_file path =
   let filename = Fpath.to_string path in
-  let out_file = Printf.sprintf "%s.out" filename in
   let in_str = Stdio.In_channel.read_all filename in
   let opam = OpamFile.OPAM.read_from_string in_str in
   let changed, patched_depends = patch_depends (OpamFile.OPAM.depends opam) in
   match changed with
   | false -> ()
-  | true ->
+  | true -> (
+      let dir = Fpath.parent path in
       let opam = OpamFile.OPAM.with_depends patched_depends opam in
-      let unused_filename = OpamFilename.of_string out_file in
+      let unused_filename = OpamFilename.of_string filename in
       let typed_file = OpamFile.make unused_filename in
       let data =
         OpamFile.OPAM.to_string_with_preserved_format ~format_from_string:in_str
           typed_file opam
       in
-      Stdio.Out_channel.write_all out_file ~data
+      let res =
+        Bos.OS.File.with_tmp_oc ~dir "base-bytes-bye-%s"
+          (fun tmp_path oc data ->
+            Stdio.Out_channel.output_string oc data;
+            Stdio.Out_channel.close oc;
+            rename tmp_path path)
+          data
+      in
+      match res with Ok () -> () | Error (`Msg msg) -> failwith msg)
 
 let exclusions = [ "_opam"; "_build" ] |> Set.of_list (module String)
 
