@@ -6,7 +6,7 @@ not fail:
   >  (public_name camel)
   >  (libraries base sexplib))
   > EOF
-  $ base-bytes-bye --process-dune-project=false
+  $ base-bytes-bye
   $ cat dune
   (executable
    (public_name camel)
@@ -20,7 +20,7 @@ successfully removed:
   >  (public_name camel)
   >  (libraries base bytes sexplib))
   > EOF
-  $ base-bytes-bye --process-dune-project=false
+  $ base-bytes-bye
   $ cat dune
   (executable
    (public_name camel)

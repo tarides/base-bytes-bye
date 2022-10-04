@@ -191,9 +191,11 @@ let main_cli (`Working_dir wd) (`Process_dune process_dune)
       List.iter ~f:(patch_sexp_file patch_dune_expr) dune_paths);
   (match process_dune_project with
   | false -> ()
-  | true ->
+  | true -> (
       let dune_project_path = Fpath.(wd / "dune-project") in
-      patch_sexp_file patch_dune_project_expr dune_project_path);
+      match Bos.OS.File.exists dune_project_path with
+      | Ok true -> patch_sexp_file patch_dune_project_expr dune_project_path
+      | Ok false | Error _ -> ()));
   (match process_opam with
   | false -> ()
   | true ->

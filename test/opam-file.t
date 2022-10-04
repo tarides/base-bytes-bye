@@ -7,7 +7,7 @@ not fail:
   >   "ocaml" {>= "4.14.0"}
   > ]
   > EOF
-  $ base-bytes-bye --process-dune-project=false
+  $ base-bytes-bye
   $ cat opam
   opam-version: "2.0"
   depends: [
@@ -24,7 +24,7 @@ successfully removed:
   >   "base-bytes"
   > ]
   > EOF
-  $ base-bytes-bye --process-dune-project=false
+  $ base-bytes-bye
   $ cat opam
   opam-version: "2.0"
   depends: [
@@ -41,7 +41,7 @@ as well:
   >   "base-bytes" {>= "base"}
   > ]
   > EOF
-  $ base-bytes-bye --process-dune-project=false
+  $ base-bytes-bye
   $ cat opam
   opam-version: "2.0"
   depends: [
@@ -58,7 +58,7 @@ Make sure it works for all files ending with `.opam` in the folder:
   > ]
   > EOF
   $ cp bactrian.opam dromedary.opam
-  $ base-bytes-bye --process-dune-project=false
+  $ base-bytes-bye
   $ cat bactrian.opam dromedary.opam
   opam-version: "2.0"
   depends: [
