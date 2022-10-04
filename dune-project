@@ -12,6 +12,7 @@
   (depends
     (ocaml (>= 4.14.0))
     (fpath (>= 0.7.3))
+    (cmdliner (>= 1.1.1))
     (fmt (>= 0.9.0))
     (bos (>= 0.2.1))
     (opam-format (>= 2.1.3))

@@ -147,13 +147,20 @@ let locate_opam_files wd =
   | Ok opam_files -> opam_files
   | Error (`Msg msg) -> failwith msg
 
-let main () =
+let main_cli () =
   let wd = Fpath.v "." in
   let dune_paths = locate_dune_files wd in
   List.iter ~f:(patch_sexp_file patch_dune_expr) dune_paths;
   let dune_project_path = Fpath.(wd / "dune-project") in
   patch_sexp_file patch_dune_project_expr dune_project_path;
   let opam_paths = locate_opam_files wd in
-  List.iter ~f:patch_opam_file opam_paths
+  List.iter ~f:patch_opam_file opam_paths;
+  0
+
+let main () =
+  let term = Cmdliner.Term.(const main_cli $ const ()) in
+  let info = Cmdliner.Cmd.info "base-bytes-bye" in
+  let main = Cmdliner.Cmd.v info term in
+  Stdlib.exit @@ Cmdliner.Cmd.eval' main
 
 let () = main ()
