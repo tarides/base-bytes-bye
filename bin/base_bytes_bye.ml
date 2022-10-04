@@ -147,8 +147,21 @@ let locate_opam_files wd =
   | Ok opam_files -> opam_files
   | Error (`Msg msg) -> failwith msg
 
-let main_cli () =
-  let wd = Fpath.v "." in
+let named f = Cmdliner.Term.(app (const f))
+
+let working_dir =
+  let open Cmdliner in
+  let doc =
+    "The directory $(docv) where to start looking for files. If absent, \
+     implied to be the current directory"
+  in
+  let docv = "WORKING_DIR" in
+  named
+    (fun x -> `Working_dir x)
+    Arg.(value & opt dir "." & info [ "work-dir" ] ~doc ~docv)
+
+let main_cli (`Working_dir wd) =
+  let wd = Fpath.v wd in
   let dune_paths = locate_dune_files wd in
   List.iter ~f:(patch_sexp_file patch_dune_expr) dune_paths;
   let dune_project_path = Fpath.(wd / "dune-project") in
@@ -158,7 +171,7 @@ let main_cli () =
   0
 
 let main () =
-  let term = Cmdliner.Term.(const main_cli $ const ()) in
+  let term = Cmdliner.Term.(const main_cli $ working_dir) in
   let info = Cmdliner.Cmd.info "base-bytes-bye" in
   let main = Cmdliner.Cmd.v info term in
   Stdlib.exit @@ Cmdliner.Cmd.eval' main
