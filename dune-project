@@ -1,6 +1,7 @@
 (lang dune 3.4)
 (name base-bytes-bye)
 
+(cram enable)
 (generate_opam_files true)
 (authors "Marek Kubica <marek@tarides.com>")
 (maintainers "Marek Kubica <marek@tarides.com>")
