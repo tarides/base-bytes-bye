@@ -147,32 +147,34 @@ let locate_opam_files wd =
   | Ok opam_files -> opam_files
   | Error (`Msg msg) -> failwith msg
 
-let named f = Cmdliner.Term.(app (const f))
-
-let working_dir =
-  let open Cmdliner in
-  let doc =
-    "The directory $(docv) where to start looking for files. If absent, \
-     implied to be the current directory"
-  in
-  let docv = "WORKING_DIR" in
-  named
-    (fun x -> `Working_dir x)
-    Arg.(value & opt dir "." & info [ "work-dir" ] ~doc ~docv)
-
-let main_cli (`Working_dir wd) =
-  let wd = Fpath.v wd in
-  let dune_paths = locate_dune_files wd in
-  List.iter ~f:(patch_sexp_file patch_dune_expr) dune_paths;
-  let dune_project_path = Fpath.(wd / "dune-project") in
-  patch_sexp_file patch_dune_project_expr dune_project_path;
-  let opam_paths = locate_opam_files wd in
-  List.iter ~f:patch_opam_file opam_paths;
+let main_cli (`Working_dir wd) (`Process_dune process_dune)
+    (`Process_dune_project process_dune_project) (`Process_opam process_opam) =
+  (match process_dune with
+  | false -> ()
+  | true ->
+      let dune_paths = locate_dune_files wd in
+      List.iter ~f:(patch_sexp_file patch_dune_expr) dune_paths);
+  (match process_dune_project with
+  | false -> ()
+  | true ->
+      let dune_project_path = Fpath.(wd / "dune-project") in
+      patch_sexp_file patch_dune_project_expr dune_project_path);
+  (match process_opam with
+  | false -> ()
+  | true ->
+      let opam_paths = locate_opam_files wd in
+      List.iter ~f:patch_opam_file opam_paths);
   0
 
 let main () =
-  let term = Cmdliner.Term.(const main_cli $ working_dir) in
-  let info = Cmdliner.Cmd.info "base-bytes-bye" in
+  let term =
+    Cmdliner.Term.(
+      const main_cli $ Cli.working_dir $ Cli.dune $ Cli.dune_project $ Cli.opam)
+  in
+  let doc =
+    "Removes the base-bytes dependency and the bytes library from dune projects"
+  in
+  let info = Cmdliner.Cmd.info "base-bytes-bye" ~doc in
   let main = Cmdliner.Cmd.v info term in
   Stdlib.exit @@ Cmdliner.Cmd.eval' main
 
