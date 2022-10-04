@@ -58,14 +58,39 @@ let patch_sexp_file patchf path =
   in
   match changed with
   | false -> ()
-  | true ->
-      let out_file = Printf.sprintf "%s.out" filename in
-      Stdio.Out_channel.with_file out_file ~f:(fun out_file ->
-          List.iter
-            ~f:(fun sexp ->
-              S.output_hum out_file sexp;
-              Stdio.Out_channel.output_char out_file '\n')
-            exprs)
+  | true -> (
+      let dir = Fpath.parent path in
+      let res =
+        Bos.OS.File.with_tmp_oc ~dir "base-bytes-bye-%s"
+          (fun sexp_path oc exprs ->
+            List.iter
+              ~f:(fun sexp ->
+                S.output_hum oc sexp;
+                Stdio.Out_channel.output_char oc '\n')
+              exprs;
+            Stdio.Out_channel.close oc;
+
+            let cmd = Bos.Cmd.(v "dune" % "format-dune-file" % p sexp_path) in
+            let run_out = Bos.OS.Cmd.run_out cmd in
+            match Bos.OS.Cmd.to_string ~trim:false run_out with
+            | Error (`Msg msg) -> failwith msg
+            | Ok formatted -> (
+                let res =
+                  Bos.OS.File.with_tmp_oc ~dir "base-bytes-bye-%s"
+                    (fun format_path oc content ->
+                      Stdio.Out_channel.output_string oc content;
+                      Stdio.Out_channel.close oc;
+                      match Bos.OS.U.rename format_path path with
+                      | Ok () -> ()
+                      | Error (`Unix unix_err) ->
+                          Fmt.failwith "Unix error: %s"
+                            (Unix.error_message unix_err))
+                    formatted
+                in
+                match res with Ok () -> () | Error (`Msg msg) -> failwith msg))
+          exprs
+      in
+      match res with Ok () -> () | Error (`Msg msg) -> failwith msg)
 
 let patch_depends filtered_formula =
   let base_bytes = OpamPackage.Name.of_string "base-bytes" in
