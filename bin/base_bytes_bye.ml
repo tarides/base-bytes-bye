@@ -46,11 +46,16 @@ let patch_dune_project_expr sexp =
   in
   loop ~changed:false sexp
 
-let rename from into =
+let rename_exn from into =
   match Bos.OS.U.rename from into with
   | Ok () -> ()
   | Error (`Unix unix_err) ->
       Fmt.failwith "Unix error: %s" (Unix.error_message unix_err)
+
+let with_tmp_oc_exn ~dir ~f v =
+  match Bos.OS.File.with_tmp_oc ~dir "base-bytes-bye-%s" f v with
+  | Ok r -> r
+  | Error (`Msg msg) -> failwith msg
 
 let patch_sexp_file patchf path =
   let filename = Fpath.to_string path in
@@ -64,35 +69,25 @@ let patch_sexp_file patchf path =
   in
   match changed with
   | false -> ()
-  | true -> (
+  | true ->
       let dir = Fpath.parent path in
-      let res =
-        Bos.OS.File.with_tmp_oc ~dir "base-bytes-bye-%s"
-          (fun sexp_path oc exprs ->
-            List.iter
-              ~f:(fun sexp ->
-                S.output_hum oc sexp;
-                Stdio.Out_channel.output_char oc '\n')
-              exprs;
-            Stdio.Out_channel.close oc;
+      with_tmp_oc_exn ~dir exprs ~f:(fun sexp_path oc exprs ->
+          List.iter
+            ~f:(fun sexp ->
+              S.output_hum oc sexp;
+              Stdio.Out_channel.output_char oc '\n')
+            exprs;
+          Stdio.Out_channel.close oc;
 
-            let cmd = Bos.Cmd.(v "dune" % "format-dune-file" % p sexp_path) in
-            let run_out = Bos.OS.Cmd.run_out cmd in
-            match Bos.OS.Cmd.to_string ~trim:false run_out with
-            | Error (`Msg msg) -> failwith msg
-            | Ok formatted -> (
-                let res =
-                  Bos.OS.File.with_tmp_oc ~dir "base-bytes-bye-%s"
-                    (fun format_path oc content ->
-                      Stdio.Out_channel.output_string oc content;
-                      Stdio.Out_channel.close oc;
-                      rename format_path path)
-                    formatted
-                in
-                match res with Ok () -> () | Error (`Msg msg) -> failwith msg))
-          exprs
-      in
-      match res with Ok () -> () | Error (`Msg msg) -> failwith msg)
+          let cmd = Bos.Cmd.(v "dune" % "format-dune-file" % p sexp_path) in
+          let run_out = Bos.OS.Cmd.run_out cmd in
+          match Bos.OS.Cmd.to_string ~trim:false run_out with
+          | Error (`Msg msg) -> failwith msg
+          | Ok formatted ->
+              with_tmp_oc_exn ~dir formatted ~f:(fun format_path oc content ->
+                  Stdio.Out_channel.output_string oc content;
+                  Stdio.Out_channel.close oc;
+                  rename_exn format_path path))
 
 let patch_depends filtered_formula =
   let base_bytes = OpamPackage.Name.of_string "base-bytes" in
@@ -128,7 +123,7 @@ let patch_opam_file path =
   let changed, patched_depends = patch_depends (OpamFile.OPAM.depends opam) in
   match changed with
   | false -> ()
-  | true -> (
+  | true ->
       let dir = Fpath.parent path in
       let opam = OpamFile.OPAM.with_depends patched_depends opam in
       let unused_filename = OpamFilename.of_string filename in
@@ -137,15 +132,10 @@ let patch_opam_file path =
         OpamFile.OPAM.to_string_with_preserved_format ~format_from_string:in_str
           typed_file opam
       in
-      let res =
-        Bos.OS.File.with_tmp_oc ~dir "base-bytes-bye-%s"
-          (fun tmp_path oc data ->
-            Stdio.Out_channel.output_string oc data;
-            Stdio.Out_channel.close oc;
-            rename tmp_path path)
-          data
-      in
-      match res with Ok () -> () | Error (`Msg msg) -> failwith msg)
+      with_tmp_oc_exn ~dir data ~f:(fun tmp_path oc data ->
+          Stdio.Out_channel.output_string oc data;
+          Stdio.Out_channel.close oc;
+          rename_exn tmp_path path)
 
 let exclusions = [ "_opam"; "_build" ] |> Set.of_list (module String)
 
