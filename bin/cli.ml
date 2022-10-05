@@ -3,13 +3,14 @@ open Cmdliner
 let named f = Term.(app (const f))
 
 let fpath_dir =
-  Arg.conv
-    ( (fun s ->
-        let path = Fpath.v s in
-        match Fpath.is_dir_path path with
-        | true -> Ok path
-        | false -> Error (`Msg "Not a directory path")),
-      Fpath.pp )
+  let parse s =
+    match Sys.file_exists s with
+    | true ->
+        if Sys.is_directory s then Ok (Fpath.v s)
+        else Error (`Msg (Fmt.str "'%s' is not a directory" s))
+    | false -> Error (`Msg (Fmt.str "Directory '%s' does not exist" s))
+  in
+  Arg.conv (parse, Fpath.pp)
 
 let working_dir =
   let doc =
