@@ -42,3 +42,13 @@ let opam =
   named
     (fun x -> `Process_opam x)
     Arg.(value & opt bool true & info [ "process-opam" ] ~doc ~docv)
+
+let base_bytes_removal =
+  let doc =
+    "Force removal of base-bytes even if the package does not depend on dune"
+  in
+  let docv = "BOOL" in
+  named
+    (fun x -> `Force_base_bytes_removal x)
+    Arg.(
+      value & opt bool false & info [ "force-base-bytes-removal" ] ~doc ~docv)

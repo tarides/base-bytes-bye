@@ -116,26 +116,45 @@ let patch_depends filtered_formula =
   in
   remove_base_bytes ~changed:false filtered_formula
 
-let patch_opam_file path =
+let uses_dune filtered_formula =
+  let dune = OpamPackage.Name.of_string "dune" in
+  let is_dune = OpamPackage.Name.equal dune in
+  let rec find_dune = function
+    | OpamFormula.Empty -> false
+    | Atom (name, _) when is_dune name -> true
+    | Atom _ -> false
+    | Block _ -> false
+    | And (left, right) -> find_dune left || find_dune right
+    (* dune must be in both branches, otherwise there is a solution where
+       there is no dune dependency *)
+    | Or (left, right) -> find_dune left && find_dune right
+  in
+  find_dune filtered_formula
+
+let patch_opam_file ~force_base_bytes_removal path =
   let filename = Fpath.to_string path in
   let in_str = Stdio.In_channel.read_all filename in
   let opam = OpamFile.OPAM.read_from_string in_str in
-  let changed, patched_depends = patch_depends (OpamFile.OPAM.depends opam) in
-  match changed with
+  let depends = OpamFile.OPAM.depends opam in
+  match force_base_bytes_removal || uses_dune depends with
   | false -> ()
-  | true ->
-      let dir = Fpath.parent path in
-      let opam = OpamFile.OPAM.with_depends patched_depends opam in
-      let unused_filename = OpamFilename.of_string filename in
-      let typed_file = OpamFile.make unused_filename in
-      let data =
-        OpamFile.OPAM.to_string_with_preserved_format ~format_from_string:in_str
-          typed_file opam
-      in
-      with_tmp_oc_exn ~dir data ~f:(fun tmp_path oc data ->
-          Stdio.Out_channel.output_string oc data;
-          Stdio.Out_channel.close oc;
-          rename_exn tmp_path path)
+  | true -> (
+      let changed, patched_depends = patch_depends depends in
+      match changed with
+      | false -> ()
+      | true ->
+          let dir = Fpath.parent path in
+          let opam = OpamFile.OPAM.with_depends patched_depends opam in
+          let unused_filename = OpamFilename.of_string filename in
+          let typed_file = OpamFile.make unused_filename in
+          let data =
+            OpamFile.OPAM.to_string_with_preserved_format
+              ~format_from_string:in_str typed_file opam
+          in
+          with_tmp_oc_exn ~dir data ~f:(fun tmp_path oc data ->
+              Stdio.Out_channel.output_string oc data;
+              Stdio.Out_channel.close oc;
+              rename_exn tmp_path path))
 
 let exclusions = [ "_opam"; "_build" ] |> Set.of_list (module String)
 
@@ -173,7 +192,8 @@ let locate_opam_files wd =
   | Error (`Msg msg) -> failwith msg
 
 let main_cli (`Working_dir wd) (`Process_dune process_dune)
-    (`Process_dune_project process_dune_project) (`Process_opam process_opam) =
+    (`Process_dune_project process_dune_project) (`Process_opam process_opam)
+    (`Force_base_bytes_removal force_base_bytes_removal) =
   (match process_dune with
   | false -> ()
   | true ->
@@ -190,13 +210,14 @@ let main_cli (`Working_dir wd) (`Process_dune process_dune)
   | false -> ()
   | true ->
       let opam_paths = locate_opam_files wd in
-      List.iter ~f:patch_opam_file opam_paths);
+      List.iter ~f:(patch_opam_file ~force_base_bytes_removal) opam_paths);
   0
 
 let main () =
   let term =
     Cmdliner.Term.(
-      const main_cli $ Cli.working_dir $ Cli.dune $ Cli.dune_project $ Cli.opam)
+      const main_cli $ Cli.working_dir $ Cli.dune $ Cli.dune_project $ Cli.opam
+      $ Cli.base_bytes_removal)
   in
   let doc =
     "Removes the base-bytes dependency and the bytes library from dune projects"

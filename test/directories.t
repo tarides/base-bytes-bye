@@ -10,6 +10,7 @@ tree.
   > opam-version: "2.0"
   > depends: [
   >   "ocaml" {>= "4.14.0"}
+  >   "dune" {>= "3.0"}
   >   "base-bytes"
   > ]
   > EOF
@@ -21,6 +22,7 @@ tree.
   >   (name dune-project-test)
   >   (depends
   >     (ocaml (>= 4.14.0))
+  >     (dune (>= 3.0))
   >     base-bytes))
   > EOF
   $ cat > dune <<EOF
@@ -40,6 +42,7 @@ The top level opam and dune-project files should have base-bytes removed:
   opam-version: "2.0"
   depends: [
     "ocaml" {>= "4.14.0"}
+    "dune" {>= "3.0"}
   ]
   $ cat dune-project
   (lang dune 3.4)
@@ -50,7 +53,9 @@ The top level opam and dune-project files should have base-bytes removed:
    (name dune-project-test)
    (depends
     (ocaml
-     (>= 4.14.0))))
+     (>= 4.14.0))
+    (dune
+     (>= 3.0))))
 
 The nested opam and dune-project files should not have been modified:
 
@@ -58,6 +63,7 @@ The nested opam and dune-project files should not have been modified:
   opam-version: "2.0"
   depends: [
     "ocaml" {>= "4.14.0"}
+    "dune" {>= "3.0"}
     "base-bytes"
   ]
   $ cat subdir/dune-project
@@ -68,6 +74,7 @@ The nested opam and dune-project files should not have been modified:
     (name dune-project-test)
     (depends
       (ocaml (>= 4.14.0))
+      (dune (>= 3.0))
       base-bytes))
 
 Contrary to that, the dune files should all be edited:
@@ -91,6 +98,7 @@ processed.
   > opam-version: "2.0"
   > depends: [
   >   "ocaml" {>= "4.14.0"}
+  >   "dune" {>= "3.0"}
   >   "base-bytes"
   > ]
   > EOF
@@ -105,12 +113,14 @@ directory:
   opam-version: "2.0"
   depends: [
     "ocaml" {>= "4.14.0"}
+    "dune" {>= "3.0"}
     "base-bytes"
   ]
   $ cat subdir/opam
   opam-version: "2.0"
   depends: [
     "ocaml" {>= "4.14.0"}
+    "dune" {>= "3.0"}
   ]
 
 Running it on something that is not a directory should fail:
